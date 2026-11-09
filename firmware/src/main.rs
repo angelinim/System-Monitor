@@ -10,6 +10,7 @@ use embassy_rp::usb::{Driver, InterruptHandler};
 use embassy_time::Timer;
 use embassy_usb::UsbDevice;
 use embassy_usb::class::cdc_acm::{CdcAcmClass, State};
+use embassy_usb::driver::EndpointError;
 use embedded_graphics::prelude::*;
 use embedded_graphics::mono_font::MonoTextStyle;
 use embedded_graphics::mono_font::ascii::FONT_6X10;
@@ -81,12 +82,7 @@ async fn main(spawner: Spawner) {
 
     loop {
         class.wait_connection().await;
-        if class.dtr() {
-            led.set_high();
-        } else {
-            led.set_low();
-        }
-        Timer::after_millis(50).await;
+        let _ = echo(&mut class, &mut led).await;
     }
 }
 
@@ -96,4 +92,25 @@ type MyUsbDevice = UsbDevice<'static, MyUsbDriver>;
 #[embassy_executor::task]
 async fn usb_task(mut usb: MyUsbDevice) -> ! {
     usb.run().await
+}
+
+struct Disconnected {}
+
+impl From<EndpointError> for Disconnected {
+    fn from(val: EndpointError) -> Self {
+        match val {
+            EndpointError::BufferOverflow => panic!("Buffer Overflow"),
+            EndpointError::Disabled => Disconnected {},
+        }
+    }
+}
+
+async fn echo(class: &mut CdcAcmClass<'static, Driver<'static, USB>>, led: &mut Output<'static>) -> Result<(), Disconnected> {
+    let mut buf = [0; 64];
+    loop {
+        led.toggle();
+        let n = class.read_packet(&mut buf).await?;
+        let data = &buf[..n];
+        class.write_packet(data).await?;
+    }
 }
