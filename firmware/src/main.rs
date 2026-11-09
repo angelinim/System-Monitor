@@ -25,6 +25,19 @@ bind_interrupts!(struct Irqs {
    USBCTRL_IRQ => InterruptHandler<USB>; 
 });
 
+
+
+struct Disconnected {}
+
+impl From<EndpointError> for Disconnected {
+    fn from(val: EndpointError) -> Self {
+        match val {
+            EndpointError::BufferOverflow => panic!("Buffer Overflow"),
+            EndpointError::Disabled => Disconnected {},
+        }
+    }
+}
+
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
@@ -67,22 +80,27 @@ async fn main(spawner: Spawner) {
     spawner.spawn(usb_task(usb).unwrap());
     
     // pinout and information for controlling the led
-    // let data = p.PIN_4;
-    // let clock = p.PIN_5;
+    let data = p.PIN_4;
+    let clock = p.PIN_5;
     let mut led = Output::new(p.PIN_25, Level::Low);
 
-    // let i2c = I2c::new_blocking(p.I2C0, clock, data, i2c::Config::default());
-    // let interface = I2CDisplayInterface::new(i2c);
-    // let mut display = Ssd1306::new(interface, DisplaySize128x64, DisplayRotation::Rotate0).into_buffered_graphics_mode();
-    // display.init().unwrap();
+    let i2c = I2c::new_blocking(p.I2C0, clock, data, i2c::Config::default());
+    let interface = I2CDisplayInterface::new(i2c);
+    let mut display = Ssd1306::new(interface, DisplaySize128x64, DisplayRotation::Rotate0).into_buffered_graphics_mode();
+    display.init().unwrap();
 
-    // let style = MonoTextStyle::new(&FONT_6X10, BinaryColor::On);
-    // Text::with_baseline("Hello, Pico!", Point::new(0, 0), style, Baseline::Top).draw(&mut display).unwrap();
-    // display.flush().unwrap();
+    let style = MonoTextStyle::new(&FONT_6X10, BinaryColor::On);
+
+    let mut buf = [0; 64];
 
     loop {
         class.wait_connection().await;
-        let _ = echo(&mut class, &mut led).await;
+        // let _ = echo(&mut class, &mut led).await;
+        let Ok(n) = class.read_packet(&mut buf).await else { break };
+        display.clear(BinaryColor::Off).unwrap();
+        let Ok(data)= core::str::from_utf8(&buf[..n]) else { break };
+        Text::with_baseline(data, Point::new(0, 0), style, Baseline::Top).draw(&mut display).unwrap();
+        display.flush().unwrap();
     }
 }
 
@@ -94,16 +112,6 @@ async fn usb_task(mut usb: MyUsbDevice) -> ! {
     usb.run().await
 }
 
-struct Disconnected {}
-
-impl From<EndpointError> for Disconnected {
-    fn from(val: EndpointError) -> Self {
-        match val {
-            EndpointError::BufferOverflow => panic!("Buffer Overflow"),
-            EndpointError::Disabled => Disconnected {},
-        }
-    }
-}
 
 async fn echo(class: &mut CdcAcmClass<'static, Driver<'static, USB>>, led: &mut Output<'static>) -> Result<(), Disconnected> {
     let mut buf = [0; 64];
