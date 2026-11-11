@@ -1,13 +1,13 @@
 #![no_std]
 #![no_main]
 
+use heapless::{ Vec };
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
-use embassy_rp::gpio::{Level, Output};
 use embassy_rp::i2c::{self, I2c};
 use embassy_rp::peripherals::USB;
 use embassy_rp::usb::{Driver, InterruptHandler};
-use embassy_time::Timer;
+// use embassy_time::Timer;
 use embassy_usb::UsbDevice;
 use embassy_usb::class::cdc_acm::{CdcAcmClass, State};
 use embassy_usb::driver::EndpointError;
@@ -80,29 +80,57 @@ async fn main(spawner: Spawner) {
     spawner.spawn(usb_task(usb).unwrap());
     
     // pinout and information for controlling the led
-    let data = p.PIN_4;
-    let clock = p.PIN_5;
-    let mut led = Output::new(p.PIN_25, Level::Low);
+    let sda = p.PIN_4;
+    let scl = p.PIN_5;
 
-    let i2c = I2c::new_blocking(p.I2C0, clock, data, i2c::Config::default());
+    let i2c = I2c::new_blocking(p.I2C0, scl, sda, i2c::Config::default());
     let interface = I2CDisplayInterface::new(i2c);
     let mut display = Ssd1306::new(interface, DisplaySize128x64, DisplayRotation::Rotate0).into_buffered_graphics_mode();
     display.init().unwrap();
 
     let style = MonoTextStyle::new(&FONT_6X10, BinaryColor::On);
+    let mut text_position = Point::new(0, 0);
 
     let mut buf = [0; 64];
+    let mut line_buf: Vec<u8, 128> = Vec::new();
 
     loop {
         class.wait_connection().await;
         // let _ = echo(&mut class, &mut led).await;
-        let Ok(n) = class.read_packet(&mut buf).await else { break };
-        display.clear(BinaryColor::Off).unwrap();
-        let Ok(data)= core::str::from_utf8(&buf[..n]) else { break };
-        Text::with_baseline(data, Point::new(0, 0), style, Baseline::Top).draw(&mut display).unwrap();
-        display.flush().unwrap();
+        let Ok(n) = class.read_packet(&mut buf).await else { continue };
+        for &b in &buf[..n] {
+            if !b.is_ascii() {continue}
+            if b == b'\r' || b == b'\n' {
+                // empty line buffer, draw, and continue
+                if text_position.y > 50 {
+                    display.clear(BinaryColor::Off).unwrap();
+                    text_position.y = 0;
+                }
+                let data = core::str::from_utf8(&line_buf).unwrap();
+                Text::with_baseline(data, text_position, style, Baseline::Top).draw(&mut display).unwrap();
+                display.flush().unwrap();
+                text_position.y += 10;
+                line_buf.clear();
+            } else if let Err(item) = line_buf.push(b){
+                if text_position.y > 50 {
+                    display.clear(BinaryColor::Off).unwrap();
+                    text_position.y = 0;
+                }
+                let data = core::str::from_utf8(&line_buf).unwrap();
+                Text::with_baseline(data, text_position, style, Baseline::Top).draw(&mut display).unwrap();
+                display.flush().unwrap();
+                text_position.y += 10;
+                line_buf.clear();
+                line_buf.push(item);
+            }
+        }
     }
 }
+
+// fn draw_line(line_buf: &mut [u8], pos: Point, style: MonoTextStyle<'static,BinaryColor>,
+//     display: Ssd1306<I2CInterface<I2c<'static, I2C0, Blocking>>, DisplaySize128x64, BufferedGraphicsMode<DisplaySize128x64>> ) {
+    
+// }
 
 type MyUsbDriver = Driver<'static, USB>;
 type MyUsbDevice = UsbDevice<'static, MyUsbDriver>;
@@ -113,12 +141,3 @@ async fn usb_task(mut usb: MyUsbDevice) -> ! {
 }
 
 
-async fn echo(class: &mut CdcAcmClass<'static, Driver<'static, USB>>, led: &mut Output<'static>) -> Result<(), Disconnected> {
-    let mut buf = [0; 64];
-    loop {
-        led.toggle();
-        let n = class.read_packet(&mut buf).await?;
-        let data = &buf[..n];
-        class.write_packet(data).await?;
-    }
-}
