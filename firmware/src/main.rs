@@ -1,7 +1,8 @@
 #![no_std]
 #![no_main]
 
-use heapless::{ Vec };
+use core::fmt::Write;
+use heapless::{ Vec, String };
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
 use embassy_rp::i2c::{self, I2c};
@@ -89,7 +90,6 @@ async fn main(spawner: Spawner) {
     display.init().unwrap();
 
     let style = MonoTextStyle::new(&FONT_6X10, BinaryColor::On);
-    let mut text_position = Point::new(0, 0);
 
     let mut buf = [0; 64];
     let mut line_buf: Vec<u8, 128> = Vec::new();
@@ -101,37 +101,23 @@ async fn main(spawner: Spawner) {
         for &b in &buf[..n] {
             if !b.is_ascii() {continue}
             if b == b'\r' || b == b'\n' {
-                // empty line buffer, draw, and continue
-                if text_position.y > 50 {
-                    display.clear(BinaryColor::Off).unwrap();
-                    text_position.y = 0;
-                }
-                let data = core::str::from_utf8(&line_buf).unwrap();
-                Text::with_baseline(data, text_position, style, Baseline::Top).draw(&mut display).unwrap();
-                display.flush().unwrap();
-                text_position.y += 10;
+                clear_and_draw_lines(&line_buf, style, &mut display);
                 line_buf.clear();
             } else if let Err(item) = line_buf.push(b){
-                if text_position.y > 50 {
-                    display.clear(BinaryColor::Off).unwrap();
-                    text_position.y = 0;
-                }
-                let data = core::str::from_utf8(&line_buf).unwrap();
-                Text::with_baseline(data, text_position, style, Baseline::Top).draw(&mut display).unwrap();
-                display.flush().unwrap();
-                text_position.y += 10;
+                clear_and_draw_lines(&line_buf, style, &mut display);
                 line_buf.clear();
-                line_buf.push(item);
+                let _ = line_buf.push(item);
             }
         }
     }
 }
 
-// fn draw_line(line_buf: &mut [u8], pos: Point, style: MonoTextStyle<'static,BinaryColor>,
-//     display: Ssd1306<I2CInterface<I2c<'static, I2C0, Blocking>>, DisplaySize128x64, BufferedGraphicsMode<DisplaySize128x64>> ) {
-    
-// }
 
+type MyDisplay = Ssd1306<
+    I2CInterface<I2c<'static, embassy_rp::peripherals::I2C0, embassy_rp::i2c::Blocking>>,
+    DisplaySize128x64,
+    ssd1306::mode::BufferedGraphicsMode<DisplaySize128x64>,
+>;
 type MyUsbDriver = Driver<'static, USB>;
 type MyUsbDevice = UsbDevice<'static, MyUsbDriver>;
 
@@ -141,3 +127,40 @@ async fn usb_task(mut usb: MyUsbDevice) -> ! {
 }
 
 
+fn clear_and_draw_lines(
+    line_buf: &[u8],
+    style: MonoTextStyle<'static, BinaryColor>,
+    display: &mut MyDisplay,
+){
+    if line_buf.is_empty() {return}
+    display.clear(BinaryColor::Off).unwrap();
+    let data = core::str::from_utf8(&line_buf).unwrap();
+    // split data on ,
+    let split_data = data.split(',');
+    for pair in split_data {
+        if let Some((key, val)) = pair.split_once(':'){
+            let mut line = String::<64>::new();
+            match key {
+                s if s.eq_ignore_ascii_case("mem") => {
+                    let _ = write!(line, "MEM: {}", val);
+                    Text::with_baseline(line.as_str(), Point::new(0, 0), style, Baseline::Top).draw(display).unwrap();
+                }
+                s if s.eq_ignore_ascii_case("cpu") => {
+                    let _ = write!(line, "CPU: {}", val);
+                    Text::with_baseline(line.as_str(), Point::new(64, 0), style, Baseline::Top).draw(display).unwrap();
+                }
+                s if s.eq_ignore_ascii_case("temp") => {
+                    let _ = write!(line, "TEMP: {}", val);
+                    Text::with_baseline(line.as_str(), Point::new(0, 50), style, Baseline::Top).draw(display).unwrap();
+                }
+                s if s.eq_ignore_ascii_case("disk") => {
+                    let _ = write!(line, "DISK: {}", val);
+                    Text::with_baseline(line.as_str(), Point::new(64, 50), style, Baseline::Top).draw(display).unwrap();
+                }
+                _ => continue,
+            }
+            // pos.y += 10;
+        }
+    }
+    display.flush().unwrap();
+}
