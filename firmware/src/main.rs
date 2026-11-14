@@ -154,7 +154,7 @@ fn clear_and_draw_lines(
                     Text::with_baseline(line.as_str(), Point::new(0, 50), style, Baseline::Top).draw(display).unwrap();
                 }
                 s if s.eq_ignore_ascii_case("disk") => {
-                    let _ = write!(line, "DISK: {}", val);
+                    let _ = write!(line, "DSK: {}", val);
                     Text::with_baseline(line.as_str(), Point::new(64, 50), style, Baseline::Top).draw(display).unwrap();
                 }
                 _ => continue,
