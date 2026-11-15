@@ -8,10 +8,8 @@ use embassy_rp::bind_interrupts;
 use embassy_rp::i2c::{self, I2c};
 use embassy_rp::peripherals::USB;
 use embassy_rp::usb::{Driver, InterruptHandler};
-// use embassy_time::Timer;
 use embassy_usb::UsbDevice;
 use embassy_usb::class::cdc_acm::{CdcAcmClass, State};
-use embassy_usb::driver::EndpointError;
 use embedded_graphics::prelude::*;
 use embedded_graphics::mono_font::MonoTextStyle;
 use embedded_graphics::mono_font::ascii::FONT_6X10;
@@ -25,19 +23,6 @@ use static_cell::StaticCell;
 bind_interrupts!(struct Irqs {
    USBCTRL_IRQ => InterruptHandler<USB>; 
 });
-
-
-
-struct Disconnected {}
-
-impl From<EndpointError> for Disconnected {
-    fn from(val: EndpointError) -> Self {
-        match val {
-            EndpointError::BufferOverflow => panic!("Buffer Overflow"),
-            EndpointError::Disabled => Disconnected {},
-        }
-    }
-}
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
@@ -80,7 +65,6 @@ async fn main(spawner: Spawner) {
 
     spawner.spawn(usb_task(usb).unwrap());
     
-    // pinout and information for controlling the led
     let sda = p.PIN_4;
     let scl = p.PIN_5;
 
@@ -96,7 +80,6 @@ async fn main(spawner: Spawner) {
 
     loop {
         class.wait_connection().await;
-        // let _ = echo(&mut class, &mut led).await;
         let Ok(n) = class.read_packet(&mut buf).await else { continue };
         for &b in &buf[..n] {
             if !b.is_ascii() {continue}
@@ -159,7 +142,6 @@ fn clear_and_draw_lines(
                 }
                 _ => continue,
             }
-            // pos.y += 10;
         }
     }
     display.flush().unwrap();
