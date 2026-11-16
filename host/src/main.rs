@@ -1,3 +1,4 @@
+use serialport::SerialPort;
 use std::{path::Path, time::Duration};
 use sysinfo::{Components, Disks, System};
 
@@ -8,27 +9,52 @@ fn main() {
     system_info.refresh_all();
 
     loop {
-        match serialport::new("/dev/ttyACM0", 115_200)
+        if let Some(mut port) = connect() {
+            loop {
+                std::thread::sleep(Duration::from_secs(1));
+                let line = build_line(&mut system_info, &mut components, &mut disks);
+                if let Err(err) = port.write_all(&line.into_bytes()) {
+                    println!("Something went wrong! Err: {err}");
+                    break;
+                }
+            }
+        } else {
+            println!("sleeping for 5 seconds and retrying connection");
+            std::thread::sleep(Duration::from_secs(5));
+        }
+    }
+}
+
+fn find_pico() -> Option<String> {
+    serialport::available_ports()
+        .ok()?
+        .into_iter()
+        .find(|port|
+            matches!(
+                &port.port_type,
+                serialport::SerialPortType::UsbPort(info) if info.vid == 0xc0de && info.pid == 0xcafe
+            )
+        ).map(|p|p.port_name)
+}
+
+fn connect() -> Option<Box<dyn SerialPort>> {
+    if let Some(port_name) = find_pico() {
+        match serialport::new(&port_name, 115_200)
             .timeout(Duration::from_millis(500))
             .open()
         {
-            Ok(mut port) => {
-                println!("Connected on /dev/ttyACM0");
-                loop {
-                    std::thread::sleep(Duration::from_secs(1));
-                    let line = build_line(&mut system_info, &mut components, &mut disks);
-                    if let Err(err) = port.write_all(&line.into_bytes()) {
-                        println!("Something went wrong! Err: {err}");
-                        break;
-                    }
-                }
+            Ok(port) => {
+                println!("Connected on {port_name}");
+                Some(port)
             }
             Err(err) => {
-                println!("Could not find pico on /dev/ttyACM0... Err: {err}");
-                println!("sleeping for 5 seconds and retrying connection");
-                std::thread::sleep(Duration::from_secs(5));
+                println!("Error opening serial port {port_name}: Err {err}");
+                None
             }
         }
+    } else {
+        println!("Could not find pico!");
+        None
     }
 }
 
