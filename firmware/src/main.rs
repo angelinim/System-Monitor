@@ -2,6 +2,7 @@
 #![no_main]
 
 use core::fmt::Write;
+use embassy_time::{Duration, TimeoutError, with_timeout};
 use heapless::{ Vec, String };
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
@@ -75,21 +76,32 @@ async fn main(spawner: Spawner) {
 
     let style = MonoTextStyle::new(&FONT_6X10, BinaryColor::On);
 
+    draw_waiting_for_host(style, &mut display);
+
     let mut buf = [0; 64];
     let mut line_buf: Vec<u8, 128> = Vec::new();
 
     loop {
         class.wait_connection().await;
-        let Ok(n) = class.read_packet(&mut buf).await else { continue };
-        for &b in &buf[..n] {
-            if !b.is_ascii() {continue}
-            if b == b'\r' || b == b'\n' {
-                clear_and_draw_lines(&line_buf, style, &mut display);
-                line_buf.clear();
-            } else if let Err(item) = line_buf.push(b){
-                clear_and_draw_lines(&line_buf, style, &mut display);
-                line_buf.clear();
-                let _ = line_buf.push(item);
+        match with_timeout(Duration::from_secs(3), class.read_packet(&mut buf)).await {
+            Ok(Ok(n)) => {
+                for &b in &buf[..n] {
+                    if !b.is_ascii() {continue}
+                    if b == b'\r' || b == b'\n' {
+                        clear_and_draw_lines(&line_buf, style, &mut display);
+                        line_buf.clear();
+                    } else if let Err(item) = line_buf.push(b){
+                        clear_and_draw_lines(&line_buf, style, &mut display);
+                        line_buf.clear();
+                        let _ = line_buf.push(item);
+                    }
+                }
+            },
+            Ok(Err(_)) => {
+                continue;
+            },
+            Err(TimeoutError) => {
+                draw_waiting_for_host(style, &mut display);
             }
         }
     }
@@ -107,6 +119,15 @@ type MyUsbDevice = UsbDevice<'static, MyUsbDriver>;
 #[embassy_executor::task]
 async fn usb_task(mut usb: MyUsbDevice) -> ! {
     usb.run().await
+}
+
+fn draw_waiting_for_host(
+    style: MonoTextStyle<'static, BinaryColor>,
+    display: &mut MyDisplay,
+) {
+    display.clear(BinaryColor::Off).unwrap();
+    Text::with_baseline("Waiting for Host", Point::new(0, 0), style, Baseline::Top).draw(display).unwrap();
+    display.flush().unwrap();
 }
 
 
