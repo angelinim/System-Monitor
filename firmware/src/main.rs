@@ -76,7 +76,7 @@ async fn main(spawner: Spawner) {
 
     let style = MonoTextStyle::new(&FONT_6X10, BinaryColor::On);
 
-    draw_waiting_for_host(style, &mut display);
+    draw_message(style, &mut display,"Waiting for Host");
 
     let mut buf = [0; 64];
     let mut line_buf: Vec<u8, 128> = Vec::new();
@@ -98,10 +98,15 @@ async fn main(spawner: Spawner) {
                 }
             },
             Ok(Err(_)) => {
-                continue;
+                line_buf.clear();
             },
             Err(TimeoutError) => {
-                draw_waiting_for_host(style, &mut display);
+                line_buf.clear();
+                if class.dtr() {
+                    draw_message(style, &mut display,"Host Not Responding");
+                } else {
+                    draw_message(style, &mut display,"Waiting for Host");
+                }
             }
         }
     }
@@ -121,12 +126,13 @@ async fn usb_task(mut usb: MyUsbDevice) -> ! {
     usb.run().await
 }
 
-fn draw_waiting_for_host(
+fn draw_message(
     style: MonoTextStyle<'static, BinaryColor>,
     display: &mut MyDisplay,
+    message: &str,
 ) {
     display.clear(BinaryColor::Off).unwrap();
-    Text::with_baseline("Waiting for Host", Point::new(0, 0), style, Baseline::Top).draw(display).unwrap();
+    Text::with_baseline(message, Point::new(0, 0), style, Baseline::Top).draw(display).unwrap();
     display.flush().unwrap();
 }
 

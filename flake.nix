@@ -52,5 +52,19 @@
             echo "system-monitor dev shell: $(rustc --version)"
           '';
         };
-      });
+        packages.host = pkgs.rustPlatform.buildRustPackage {
+          pname = "system-monitor-host";
+          version = "0.1.0";
+          src = ./.;
+          cargoLock.lockFile = ./Cargo.lock;
+
+          cargoBuildFlags = ["-p" "host"];
+          doCheck = false;
+
+          nativeBuildInputs = [ pkgs.pkg-config ];
+          buildInputs = [ pkgs.udev ];
+        };
+        packages.default = self.packages.${system}.host;
+      }
+  );
 }
