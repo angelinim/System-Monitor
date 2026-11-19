@@ -147,25 +147,34 @@ fn clear_and_draw_lines(
     let data = core::str::from_utf8(&line_buf).unwrap();
     // split data on ,
     let split_data = data.split(',');
+    // gpu_usage:{:.1},gpu_temp
     for pair in split_data {
         if let Some((key, val)) = pair.split_once(':'){
             let mut line = String::<64>::new();
             match key {
-                s if s.eq_ignore_ascii_case("mem") => {
-                    let _ = write!(line, "MEM: {}", val);
-                    Text::with_baseline(line.as_str(), Point::new(0, 0), style, Baseline::Top).draw(display).unwrap();
-                }
                 s if s.eq_ignore_ascii_case("cpu") => {
                     let _ = write!(line, "CPU: {}", val);
-                    Text::with_baseline(line.as_str(), Point::new(64, 0), style, Baseline::Top).draw(display).unwrap();
+                    Text::with_baseline(line.as_str(), Point::new(0, 0), style, Baseline::Top).draw(display).unwrap();
                 }
-                s if s.eq_ignore_ascii_case("temp") => {
-                    let _ = write!(line, "TEMP: {}", val);
-                    Text::with_baseline(line.as_str(), Point::new(0, 50), style, Baseline::Top).draw(display).unwrap();
+                s if s.eq_ignore_ascii_case("cpu_temp") => {
+                    let _ = write!(line, ">TEMP: {}", val);
+                    Text::with_baseline(line.as_str(), Point::new(0, 10), style, Baseline::Top).draw(display).unwrap();
+                }
+                s if s.eq_ignore_ascii_case("gpu_usage") => {
+                    let _ = write!(line, "GPU: {}", val);
+                    Text::with_baseline(line.as_str(), Point::new(0, 20), style, Baseline::Top).draw(display).unwrap();
+                }
+                s if s.eq_ignore_ascii_case("gpu_temp") => {
+                    let _ = write!(line, ">TEMP: {}", val);
+                    Text::with_baseline(line.as_str(), Point::new(0, 30), style, Baseline::Top).draw(display).unwrap();
+                }
+                s if s.eq_ignore_ascii_case("mem") => {
+                    let _ = write!(line, "MEM: {}", val);
+                    Text::with_baseline(line.as_str(), Point::new(0, 40), style, Baseline::Top).draw(display).unwrap();
                 }
                 s if s.eq_ignore_ascii_case("disk") => {
                     let _ = write!(line, "DSK: {}", val);
-                    Text::with_baseline(line.as_str(), Point::new(64, 50), style, Baseline::Top).draw(display).unwrap();
+                    Text::with_baseline(line.as_str(), Point::new(0, 50), style, Baseline::Top).draw(display).unwrap();
                 }
                 _ => continue,
             }
