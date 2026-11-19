@@ -21,6 +21,16 @@ use ssd1306::{I2CDisplayInterface, Ssd1306};
 use panic_halt as _;
 use static_cell::StaticCell;
 
+const SCREEN_WIDTH: i32 = 128;
+const SCREEN_HEIGHT: i32 = 64;
+const CHAR_WIDTH: i32 = 6;
+const LABEL_CHARS: i32 = 11;
+const TEXT_WIDTH: i32 =  CHAR_WIDTH * LABEL_CHARS;
+const GRAPH_X: i32 = TEXT_WIDTH + 2;
+const GRAPH_WIDTH: i32 = SCREEN_WIDTH - GRAPH_X;
+
+
+
 bind_interrupts!(struct Irqs {
    USBCTRL_IRQ => InterruptHandler<USB>; 
 });
@@ -147,7 +157,6 @@ fn clear_and_draw_lines(
     let data = core::str::from_utf8(&line_buf).unwrap();
     // split data on ,
     let split_data = data.split(',');
-    // gpu_usage:{:.1},gpu_temp
     for pair in split_data {
         if let Some((key, val)) = pair.split_once(':'){
             let mut line = String::<64>::new();

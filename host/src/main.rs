@@ -72,7 +72,7 @@ fn build_line(
     gpus.refresh(false);
 
     // only will ever have one gpu
-    let gpu = gpus.into_iter().next();
+    let gpu = gpus.iter().next();
     let gpu_usage: f32 = gpu.and_then(|g| g.usage()).unwrap_or(-1.);
     // amdgpu junction is being used because this is the hottest
     // point on the card and will govern throttling
@@ -101,7 +101,7 @@ fn build_line(
     }
 
     format!(
-        "cpu:{:.1}%,mem:{:.1}GB,cpu_temp:{:.1},disk:{:.1}%,gpu_usage:{:.1},gpu_temp:{:.1}\n",
+        "cpu:{:.1}%,mem:{:.1}GB,cpu_temp:{:.1},disk:{:.1}%,gpu_usage:{:.1}%,gpu_temp:{:.1}\n",
         cpu_usage,
         mem_usage / 1024. / 1024. / 1024.,
         cpu_temp,
