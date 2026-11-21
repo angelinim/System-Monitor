@@ -159,23 +159,23 @@ fn flush_screen(display: &mut MyDisplay) {
     display.flush().unwrap();
 }
 
-fn clear_and_draw_lines(
-    line_buf: &[u8],
-    style: MonoTextStyle<'static, BinaryColor>,
-    display: &mut MyDisplay,
-) {
+struct DiagnosticLabelInfo <'a>{
+    label: &'a str,
+    val_str: &'a str,
+    screen_y_pos: i32,
+}
+
+fn clear_and_draw_lines<'a>(line_buf: &'a [u8]) -> Option<Vec<DiagnosticLabelInfo<'a> ,6>>{
     if line_buf.is_empty() {
-        return;
+        return None;
     }
-    clear_screen(display);
+    let mut return_vec: Vec<DiagnosticLabelInfo , 6>= Vec::new();
     let data = core::str::from_utf8(&line_buf).unwrap();
-    // split data on ,
+    
     let split_data = data.split(',');
     for pair in split_data {
-        if let Some((key, val)) = pair.split_once(':') {
-            let mut line = String::<64>::new();
-            let parsed_val = parse_val(val);
-            let (label, line_y_pos) = match key {
+        if let Some((key, val_str)) = pair.split_once(':') {
+            let (label, screen_y_pos) = match key {
                 s if s.eq_ignore_ascii_case("cpu") => ("CPU: ", 0),
                 s if s.eq_ignore_ascii_case("cpu_temp") => (">TEMP: ", 10),
                 s if s.eq_ignore_ascii_case("gpu_usage") => ("GPU: ", 20),
@@ -184,12 +184,10 @@ fn clear_and_draw_lines(
                 s if s.eq_ignore_ascii_case("disk") => ("DSK: ", 50),
                 _ => continue,
             };
-            tmp_draw_parsed_val(parsed_val, line_y_pos, style, display);
-            let _ = write!(line, "{}{}", label, val);
-            draw_message_at_point(style, display, Point::new(0, line_y_pos), &line);
+            return_vec.push(DiagnosticLabelInfo { label, val_str, screen_y_pos});
         }
     }
-    flush_screen(display);
+    Some(return_vec)
 }
 
 fn parse_val(val: &str) -> Option<f32> {
