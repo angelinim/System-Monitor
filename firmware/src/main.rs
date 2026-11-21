@@ -114,9 +114,13 @@ async fn main(spawner: Spawner) {
             Err(TimeoutError) => {
                 line_buf.clear();
                 if class.dtr() {
+                    clear_screen(&mut display);
                     draw_message_at_point(style, &mut display, Point::new(0, 0), "Host Not Responding");
+                    flush_screen(&mut display);
                 } else {
+                    clear_screen(&mut display);
                     draw_message_at_point(style, &mut display, Point::new(0, 0), "Waiting for Host");
+                    flush_screen(&mut display);
                 }
             }
         }
@@ -142,10 +146,16 @@ fn draw_message_at_point(
     pos: Point,
     message: &str,
 ) {
-    display.clear(BinaryColor::Off).unwrap();
     Text::with_baseline(message, pos, style, Baseline::Top)
         .draw(display)
         .unwrap();
+}
+
+fn clear_screen(display: &mut MyDisplay) {
+    display.clear(BinaryColor::Off).unwrap();
+}
+
+fn flush_screen(display: &mut MyDisplay) {
     display.flush().unwrap();
 }
 
@@ -157,7 +167,7 @@ fn clear_and_draw_lines(
     if line_buf.is_empty() {
         return;
     }
-    display.clear(BinaryColor::Off).unwrap();
+    clear_screen(display);
     let data = core::str::from_utf8(&line_buf).unwrap();
     // split data on ,
     let split_data = data.split(',');
@@ -176,17 +186,10 @@ fn clear_and_draw_lines(
             };
             tmp_draw_parsed_val(parsed_val, line_y_pos, style, display);
             let _ = write!(line, "{}{}", label, val);
-            Text::with_baseline(
-                line.as_str(),
-                Point::new(0, line_y_pos),
-                style,
-                Baseline::Top,
-            )
-            .draw(display)
-            .unwrap();
+            draw_message_at_point(style, display, Point::new(0, line_y_pos), &line);
         }
     }
-    display.flush().unwrap();
+    flush_screen(display);
 }
 
 fn parse_val(val: &str) -> Option<f32> {
