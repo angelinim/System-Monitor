@@ -15,7 +15,7 @@ use embedded_graphics::mono_font::ascii::FONT_6X10;
 use embedded_graphics::pixelcolor::BinaryColor;
 use embedded_graphics::prelude::*;
 use embedded_graphics::text::{Baseline, Text};
-use heapless::{String, Vec};
+use heapless::{HistoryBuf, String, Vec};
 use panic_halt as _;
 use ssd1306::prelude::*;
 use ssd1306::{I2CDisplayInterface, Ssd1306};
@@ -85,7 +85,7 @@ async fn main(spawner: Spawner) {
 
     let style = MonoTextStyle::new(&FONT_6X10, BinaryColor::On);
 
-    draw_message(style, &mut display, "Waiting for Host");
+    draw_message_at_point(style, &mut display, Point::new(0, 0), "Waiting for Host");
 
     let mut buf = [0; 64];
     let mut line_buf: Vec<u8, 128> = Vec::new();
@@ -114,9 +114,9 @@ async fn main(spawner: Spawner) {
             Err(TimeoutError) => {
                 line_buf.clear();
                 if class.dtr() {
-                    draw_message(style, &mut display, "Host Not Responding");
+                    draw_message_at_point(style, &mut display, Point::new(0, 0), "Host Not Responding");
                 } else {
-                    draw_message(style, &mut display, "Waiting for Host");
+                    draw_message_at_point(style, &mut display, Point::new(0, 0), "Waiting for Host");
                 }
             }
         }
@@ -136,13 +136,14 @@ async fn usb_task(mut usb: MyUsbDevice) -> ! {
     usb.run().await
 }
 
-fn draw_message(
+fn draw_message_at_point(
     style: MonoTextStyle<'static, BinaryColor>,
     display: &mut MyDisplay,
+    pos: Point,
     message: &str,
 ) {
     display.clear(BinaryColor::Off).unwrap();
-    Text::with_baseline(message, Point::new(0, 0), style, Baseline::Top)
+    Text::with_baseline(message, pos, style, Baseline::Top)
         .draw(display)
         .unwrap();
     display.flush().unwrap();
@@ -196,6 +197,30 @@ fn parse_val(val: &str) -> Option<f32> {
         return None;
     }
     Some(parsed_val)
+}
+
+struct SensorHistory {
+    cpu_history: HistoryBuf<f32, 60>,
+    cpu_temp_history: HistoryBuf<f32, 60>,
+    gpu_history: HistoryBuf<f32, 60>,
+    gpu_temp_history: HistoryBuf<f32, 60>,
+    mem_history: HistoryBuf<f32, 60>,
+    disk_history: HistoryBuf<f32, 60>,
+}
+
+fn init_history() -> SensorHistory {
+    SensorHistory {
+        cpu_history: HistoryBuf::new(),
+        cpu_temp_history: HistoryBuf::new(),
+        gpu_history: HistoryBuf::new(),
+        gpu_temp_history: HistoryBuf::new(),
+        mem_history: HistoryBuf::new(),
+        disk_history: HistoryBuf::new()
+    }
+}
+
+fn write_history() {
+    
 }
 
 fn tmp_draw_parsed_val(
