@@ -99,10 +99,29 @@ async fn main(spawner: Spawner) {
                         continue;
                     }
                     if b == b'\r' || b == b'\n' {
-                        clear_and_draw_lines(&line_buf, style, &mut display);
+                        if let Some(diagnostic_info)= parse_buffer(&line_buf){
+                            clear_screen(&mut display);
+
+                            for info in diagnostic_info {
+                                let mut label = String::<128>::new();
+                                let _ = write!(label, "{}{}", info.label, info.val_str);
+                                draw_message_at_point(style, &mut display, info.screen_pos, &label);
+                            }
+                            flush_screen(&mut display);
+                        }
                         line_buf.clear();
                     } else if let Err(item) = line_buf.push(b) {
-                        clear_and_draw_lines(&line_buf, style, &mut display);
+                        if let Some(diagnostic_info)= parse_buffer(&line_buf){
+                            clear_screen(&mut display);
+
+                            for info in diagnostic_info {
+                                let mut label = String::<128>::new();
+                                let _ = write!(label, "{}{}", info.label, info.val_str);
+                                draw_message_at_point(style, &mut display, info.screen_pos, &label);
+                            }
+                            flush_screen(&mut display);
+                        }
+                        parse_buffer(&line_buf);
                         line_buf.clear();
                         let _ = line_buf.push(item);
                     }
@@ -162,10 +181,10 @@ fn flush_screen(display: &mut MyDisplay) {
 struct DiagnosticLabelInfo <'a>{
     label: &'a str,
     val_str: &'a str,
-    screen_y_pos: i32,
+    screen_pos: Point,
 }
 
-fn clear_and_draw_lines<'a>(line_buf: &'a [u8]) -> Option<Vec<DiagnosticLabelInfo<'a> ,6>>{
+fn parse_buffer<'a>(line_buf: &'a [u8]) -> Option<Vec<DiagnosticLabelInfo<'a> ,6>>{
     if line_buf.is_empty() {
         return None;
     }
@@ -184,7 +203,7 @@ fn clear_and_draw_lines<'a>(line_buf: &'a [u8]) -> Option<Vec<DiagnosticLabelInf
                 s if s.eq_ignore_ascii_case("disk") => ("DSK: ", 50),
                 _ => continue,
             };
-            return_vec.push(DiagnosticLabelInfo { label, val_str, screen_y_pos});
+            return_vec.push(DiagnosticLabelInfo { label, val_str, screen_pos: Point::new(0, screen_y_pos)});
         }
     }
     Some(return_vec)
