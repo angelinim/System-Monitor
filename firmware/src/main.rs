@@ -219,24 +219,12 @@ fn parse_buffer<'a>(line_buf: &'a [u8]) -> Option<Vec<DiagnosticLabelInfo<'a>, 6
     for pair in split_data {
         if let Some((key, val_str)) = pair.split_once(':') {
             let (label, screen_y_pos, diag_type) = match key {
-                s if s.eq_ignore_ascii_case("cpu") => {
-                    ("CPU: ", 0,DiagnosticType::CpuUsage)
-                },
-                s if s.eq_ignore_ascii_case("cpu_temp") => {
-                    (">TEMP: ", 10,DiagnosticType::CpuTemp)
-                }
-                s if s.eq_ignore_ascii_case("gpu_usage") => {
-                    ("GPU: ", 20,DiagnosticType::GpuUsage)
-                }
-                s if s.eq_ignore_ascii_case("gpu_temp") => {
-                    (">TEMP: ", 30,DiagnosticType::GpuTemp)
-                }
-                s if s.eq_ignore_ascii_case("mem") => {
-                    ("MEM: ", 40,DiagnosticType::MemoryUsage)
-                }
-                s if s.eq_ignore_ascii_case("disk") => {
-                    ("DSK: ", 50,DiagnosticType::DiskUsage)
-                }
+                s if s.eq_ignore_ascii_case("cpu") => ("CPU: ", 0, DiagnosticType::CpuUsage),
+                s if s.eq_ignore_ascii_case("cpu_temp") => (">TEMP: ", 10, DiagnosticType::CpuTemp),
+                s if s.eq_ignore_ascii_case("gpu_usage") => ("GPU: ", 20, DiagnosticType::GpuUsage),
+                s if s.eq_ignore_ascii_case("gpu_temp") => (">TEMP: ", 30, DiagnosticType::GpuTemp),
+                s if s.eq_ignore_ascii_case("mem") => ("MEM: ", 40, DiagnosticType::MemoryUsage),
+                s if s.eq_ignore_ascii_case("disk") => ("DSK: ", 50, DiagnosticType::DiskUsage),
                 _ => continue,
             };
             let _ = return_vec.push(DiagnosticLabelInfo {
@@ -282,7 +270,7 @@ fn init_history() -> DiagnosticHistory {
 
 // parse string and add f32 value to history
 fn set_history(diag_info: &DiagnosticLabelInfo, history: &mut DiagnosticHistory) {
-    if let Some(parsed_val)= parse_val(diag_info.val_str) {
+    if let Some(parsed_val) = parse_val(diag_info.val_str) {
         match diag_info.diag_type {
             DiagnosticType::CpuUsage => history.cpu_history.write(parsed_val),
             DiagnosticType::CpuTemp => history.cpu_temp_history.write(parsed_val),
@@ -298,36 +286,66 @@ fn draw_graph() {}
 
 fn tmp_draw_hist_length(
     history: &DiagnosticHistory,
-     info: &DiagnosticLabelInfo,
-     display: &mut MyDisplay,
-     style: MonoTextStyle<'static, BinaryColor> 
+    info: &DiagnosticLabelInfo,
+    display: &mut MyDisplay,
+    style: MonoTextStyle<'static, BinaryColor>,
 ) {
     // history.cpu_history.len();
     let mut message = String::<32>::new();
     match info.diag_type {
         DiagnosticType::CpuUsage => {
             let _ = write!(message, "H_len:{}", history.cpu_history.len());
-            draw_message_at_point(style, display, Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, info.screen_pos.y), &message);
-        },
+            draw_message_at_point(
+                style,
+                display,
+                Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, info.screen_pos.y),
+                &message,
+            );
+        }
         DiagnosticType::CpuTemp => {
             let _ = write!(message, "H_len:{}", history.cpu_temp_history.len());
-            draw_message_at_point(style, display, Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, info.screen_pos.y), &message);
-        },
+            draw_message_at_point(
+                style,
+                display,
+                Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, info.screen_pos.y),
+                &message,
+            );
+        }
         DiagnosticType::GpuUsage => {
             let _ = write!(message, "H_len:{}", history.gpu_history.len());
-            draw_message_at_point(style, display, Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, info.screen_pos.y), &message);
-        },
+            draw_message_at_point(
+                style,
+                display,
+                Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, info.screen_pos.y),
+                &message,
+            );
+        }
         DiagnosticType::GpuTemp => {
             let _ = write!(message, "H_len:{}", history.gpu_temp_history.len());
-            draw_message_at_point(style, display, Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, info.screen_pos.y), &message);
-        },
+            draw_message_at_point(
+                style,
+                display,
+                Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, info.screen_pos.y),
+                &message,
+            );
+        }
         DiagnosticType::MemoryUsage => {
             let _ = write!(message, "H_len:{}", history.mem_history.len());
-            draw_message_at_point(style, display, Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, info.screen_pos.y), &message);
-        },
+            draw_message_at_point(
+                style,
+                display,
+                Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, info.screen_pos.y),
+                &message,
+            );
+        }
         DiagnosticType::DiskUsage => {
             let _ = write!(message, "H_len:{}", history.disk_history.len());
-            draw_message_at_point(style, display, Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, info.screen_pos.y), &message);
-        },
+            draw_message_at_point(
+                style,
+                display,
+                Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, info.screen_pos.y),
+                &message,
+            );
+        }
     }
 }
