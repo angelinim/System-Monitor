@@ -182,6 +182,16 @@ struct DiagnosticLabelInfo <'a>{
     label: &'a str,
     val_str: &'a str,
     screen_pos: Point,
+    label_type: DiagnosticLabelType,
+}
+
+enum DiagnosticLabelType {
+    CpuUsage,
+    CpuTemp,
+    GpuUsage,
+    GpuTemp,
+    MemoryUsage,
+    DiskUsage
 }
 
 fn parse_buffer<'a>(line_buf: &'a [u8]) -> Option<Vec<DiagnosticLabelInfo<'a> ,6>>{
@@ -194,16 +204,16 @@ fn parse_buffer<'a>(line_buf: &'a [u8]) -> Option<Vec<DiagnosticLabelInfo<'a> ,6
     let split_data = data.split(',');
     for pair in split_data {
         if let Some((key, val_str)) = pair.split_once(':') {
-            let (label, screen_y_pos) = match key {
-                s if s.eq_ignore_ascii_case("cpu") => ("CPU: ", 0),
-                s if s.eq_ignore_ascii_case("cpu_temp") => (">TEMP: ", 10),
-                s if s.eq_ignore_ascii_case("gpu_usage") => ("GPU: ", 20),
-                s if s.eq_ignore_ascii_case("gpu_temp") => (">TEMP: ", 30),
-                s if s.eq_ignore_ascii_case("mem") => ("MEM: ", 40),
-                s if s.eq_ignore_ascii_case("disk") => ("DSK: ", 50),
+            let (label, screen_y_pos, label_type) = match key {
+                s if s.eq_ignore_ascii_case("cpu") => ("CPU: ", 0, DiagnosticLabelType::CpuUsage),
+                s if s.eq_ignore_ascii_case("cpu_temp") => (">TEMP: ", 10, DiagnosticLabelType::CpuTemp),
+                s if s.eq_ignore_ascii_case("gpu_usage") => ("GPU: ", 20, DiagnosticLabelType::GpuUsage),
+                s if s.eq_ignore_ascii_case("gpu_temp") => (">TEMP: ", 30, DiagnosticLabelType::GpuTemp),
+                s if s.eq_ignore_ascii_case("mem") => ("MEM: ", 40, DiagnosticLabelType::MemoryUsage),
+                s if s.eq_ignore_ascii_case("disk") => ("DSK: ", 50, DiagnosticLabelType::DiskUsage),
                 _ => continue,
             };
-            return_vec.push(DiagnosticLabelInfo { label, val_str, screen_pos: Point::new(0, screen_y_pos)});
+            return_vec.push(DiagnosticLabelInfo { label, val_str, screen_pos: Point::new(0, screen_y_pos), label_type});
         }
     }
     Some(return_vec)
