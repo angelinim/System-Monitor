@@ -82,13 +82,13 @@ async fn main(spawner: Spawner) {
     let mut display = Ssd1306::new(interface, DisplaySize128x64, DisplayRotation::Rotate0)
         .into_buffered_graphics_mode();
     display.init().unwrap();
-
     let style = MonoTextStyle::new(&FONT_6X10, BinaryColor::On);
 
     draw_message_at_point(style, &mut display, Point::new(0, 0), "Waiting for Host");
 
     let mut buf = [0; 64];
     let mut line_buf: Vec<u8, 128> = Vec::new();
+    let mut diagnostic_hist = init_history();
 
     loop {
         class.wait_connection().await;
@@ -99,19 +99,20 @@ async fn main(spawner: Spawner) {
                         continue;
                     }
                     if b == b'\r' || b == b'\n' {
-                        if let Some(diagnostic_info)= parse_buffer(&line_buf){
+                        if let Some(diagnostic_info) = parse_buffer(&line_buf) {
                             clear_screen(&mut display);
 
                             for info in diagnostic_info {
                                 let mut label = String::<128>::new();
                                 let _ = write!(label, "{}{}", info.label, info.val_str);
                                 draw_message_at_point(style, &mut display, info.screen_pos, &label);
+                                set_history(info.val_str, &mut diagnostic_hist, info.diag_type);
                             }
                             flush_screen(&mut display);
                         }
                         line_buf.clear();
                     } else if let Err(item) = line_buf.push(b) {
-                        if let Some(diagnostic_info)= parse_buffer(&line_buf){
+                        if let Some(diagnostic_info) = parse_buffer(&line_buf) {
                             clear_screen(&mut display);
 
                             for info in diagnostic_info {
@@ -134,11 +135,21 @@ async fn main(spawner: Spawner) {
                 line_buf.clear();
                 if class.dtr() {
                     clear_screen(&mut display);
-                    draw_message_at_point(style, &mut display, Point::new(0, 0), "Host Not Responding");
+                    draw_message_at_point(
+                        style,
+                        &mut display,
+                        Point::new(0, 0),
+                        "Host Not Responding",
+                    );
                     flush_screen(&mut display);
                 } else {
                     clear_screen(&mut display);
-                    draw_message_at_point(style, &mut display, Point::new(0, 0), "Waiting for Host");
+                    draw_message_at_point(
+                        style,
+                        &mut display,
+                        Point::new(0, 0),
+                        "Waiting for Host",
+                    );
                     flush_screen(&mut display);
                 }
             }
@@ -178,42 +189,59 @@ fn flush_screen(display: &mut MyDisplay) {
     display.flush().unwrap();
 }
 
-struct DiagnosticLabelInfo <'a>{
+struct DiagnosticLabelInfo<'a> {
     label: &'a str,
     val_str: &'a str,
     screen_pos: Point,
-    label_type: DiagnosticLabelType,
+    diag_type: DiagnosticType,
 }
 
-enum DiagnosticLabelType {
+enum DiagnosticType {
     CpuUsage,
     CpuTemp,
     GpuUsage,
     GpuTemp,
     MemoryUsage,
-    DiskUsage
+    DiskUsage,
 }
 
-fn parse_buffer<'a>(line_buf: &'a [u8]) -> Option<Vec<DiagnosticLabelInfo<'a> ,6>>{
+fn parse_buffer<'a>(line_buf: &'a [u8]) -> Option<Vec<DiagnosticLabelInfo<'a>, 6>> {
     if line_buf.is_empty() {
         return None;
     }
-    let mut return_vec: Vec<DiagnosticLabelInfo , 6>= Vec::new();
+    let mut return_vec: Vec<DiagnosticLabelInfo, 6> = Vec::new();
     let data = core::str::from_utf8(&line_buf).unwrap();
-    
+
     let split_data = data.split(',');
     for pair in split_data {
         if let Some((key, val_str)) = pair.split_once(':') {
-            let (label, screen_y_pos, label_type) = match key {
-                s if s.eq_ignore_ascii_case("cpu") => ("CPU: ", 0, DiagnosticLabelType::CpuUsage),
-                s if s.eq_ignore_ascii_case("cpu_temp") => (">TEMP: ", 10, DiagnosticLabelType::CpuTemp),
-                s if s.eq_ignore_ascii_case("gpu_usage") => ("GPU: ", 20, DiagnosticLabelType::GpuUsage),
-                s if s.eq_ignore_ascii_case("gpu_temp") => (">TEMP: ", 30, DiagnosticLabelType::GpuTemp),
-                s if s.eq_ignore_ascii_case("mem") => ("MEM: ", 40, DiagnosticLabelType::MemoryUsage),
-                s if s.eq_ignore_ascii_case("disk") => ("DSK: ", 50, DiagnosticLabelType::DiskUsage),
+            let (label, screen_y_pos, diag_type) = match key {
+                s if s.eq_ignore_ascii_case("cpu") => {
+                    ("CPU: ", 0,DiagnosticType::CpuUsage)
+                },
+                s if s.eq_ignore_ascii_case("cpu_temp") => {
+                    (">TEMP: ", 10,DiagnosticType::CpuTemp)
+                }
+                s if s.eq_ignore_ascii_case("gpu_usage") => {
+                    ("GPU: ", 20,DiagnosticType::GpuUsage)
+                }
+                s if s.eq_ignore_ascii_case("gpu_temp") => {
+                    (">TEMP: ", 30,DiagnosticType::GpuTemp)
+                }
+                s if s.eq_ignore_ascii_case("mem") => {
+                    ("MEM: ", 40,DiagnosticType::MemoryUsage)
+                }
+                s if s.eq_ignore_ascii_case("disk") => {
+                    ("DSK: ", 50,DiagnosticType::DiskUsage)
+                }
                 _ => continue,
             };
-            return_vec.push(DiagnosticLabelInfo { label, val_str, screen_pos: Point::new(0, screen_y_pos), label_type});
+            let _ = return_vec.push(DiagnosticLabelInfo {
+                label,
+                val_str,
+                screen_pos: Point::new(0, screen_y_pos),
+                diag_type,
+            });
         }
     }
     Some(return_vec)
@@ -229,7 +257,7 @@ fn parse_val(val: &str) -> Option<f32> {
     Some(parsed_val)
 }
 
-struct SensorHistory {
+struct DiagnosticHistory {
     cpu_history: HistoryBuf<f32, 60>,
     cpu_temp_history: HistoryBuf<f32, 60>,
     gpu_history: HistoryBuf<f32, 60>,
@@ -238,20 +266,33 @@ struct SensorHistory {
     disk_history: HistoryBuf<f32, 60>,
 }
 
-fn init_history() -> SensorHistory {
-    SensorHistory {
+fn init_history() -> DiagnosticHistory {
+    DiagnosticHistory {
         cpu_history: HistoryBuf::new(),
         cpu_temp_history: HistoryBuf::new(),
         gpu_history: HistoryBuf::new(),
         gpu_temp_history: HistoryBuf::new(),
         mem_history: HistoryBuf::new(),
-        disk_history: HistoryBuf::new()
+        disk_history: HistoryBuf::new(),
     }
 }
 
-fn write_history() {
-    
+// parse string and add f32 value to history
+fn set_history(str_val: &str, history: &mut DiagnosticHistory, diagnostic_type: DiagnosticType) {
+    if let Some(parsed_val)= parse_val(str_val) {
+        match diagnostic_type {
+            DiagnosticType::CpuUsage => history.cpu_history.write(parsed_val),
+            DiagnosticType::CpuTemp => history.cpu_temp_history.write(parsed_val),
+            DiagnosticType::GpuUsage => history.gpu_history.write(parsed_val),
+            DiagnosticType::GpuTemp => history.gpu_temp_history.write(parsed_val),
+            DiagnosticType::MemoryUsage => history.mem_history.write(parsed_val),
+            DiagnosticType::DiskUsage => history.disk_history.write(parsed_val),
+        }
+    }
 }
+
+// temporarilly will show the length of the history
+fn draw_graph() {}
 
 fn tmp_draw_parsed_val(
     parsed_val: Option<f32>,
