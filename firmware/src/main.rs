@@ -106,7 +106,8 @@ async fn main(spawner: Spawner) {
                                 let mut label = String::<128>::new();
                                 let _ = write!(label, "{}{}", info.label, info.val_str);
                                 draw_message_at_point(style, &mut display, info.screen_pos, &label);
-                                set_history(info.val_str, &mut diagnostic_hist, info.diag_type);
+                                set_history(&info, &mut diagnostic_hist);
+                                tmp_draw_hist_length(&diagnostic_hist, &info, &mut display, style);
                             }
                             flush_screen(&mut display);
                         }
@@ -119,6 +120,8 @@ async fn main(spawner: Spawner) {
                                 let mut label = String::<128>::new();
                                 let _ = write!(label, "{}{}", info.label, info.val_str);
                                 draw_message_at_point(style, &mut display, info.screen_pos, &label);
+                                set_history(&info, &mut diagnostic_hist);
+                                tmp_draw_hist_length(&diagnostic_hist, &info, &mut display, style);
                             }
                             flush_screen(&mut display);
                         }
@@ -278,9 +281,9 @@ fn init_history() -> DiagnosticHistory {
 }
 
 // parse string and add f32 value to history
-fn set_history(str_val: &str, history: &mut DiagnosticHistory, diagnostic_type: DiagnosticType) {
-    if let Some(parsed_val)= parse_val(str_val) {
-        match diagnostic_type {
+fn set_history(diag_info: &DiagnosticLabelInfo, history: &mut DiagnosticHistory) {
+    if let Some(parsed_val)= parse_val(diag_info.val_str) {
+        match diag_info.diag_type {
             DiagnosticType::CpuUsage => history.cpu_history.write(parsed_val),
             DiagnosticType::CpuTemp => history.cpu_temp_history.write(parsed_val),
             DiagnosticType::GpuUsage => history.gpu_history.write(parsed_val),
@@ -291,35 +294,40 @@ fn set_history(str_val: &str, history: &mut DiagnosticHistory, diagnostic_type: 
     }
 }
 
-// temporarilly will show the length of the history
 fn draw_graph() {}
 
-fn tmp_draw_parsed_val(
-    parsed_val: Option<f32>,
-    line_y_pos: i32,
-    style: MonoTextStyle<'static, BinaryColor>,
-    display: &mut MyDisplay,
+fn tmp_draw_hist_length(
+    history: &DiagnosticHistory,
+     info: &DiagnosticLabelInfo,
+     display: &mut MyDisplay,
+     style: MonoTextStyle<'static, BinaryColor> 
 ) {
-    match parsed_val {
-        Some(pv) => {
-            let mut tmp_str = String::<32>::new();
-            let _ = write!(tmp_str, "{:1.}", pv);
-            Text::with_baseline(
-                &tmp_str,
-                Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, line_y_pos),
-                style,
-                Baseline::Top,
-            )
-            .draw(display)
-            .unwrap()
-        }
-        None => Text::with_baseline(
-            "No Value",
-            Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, line_y_pos),
-            style,
-            Baseline::Top,
-        )
-        .draw(display)
-        .unwrap(),
-    };
+    // history.cpu_history.len();
+    let mut message = String::<32>::new();
+    match info.diag_type {
+        DiagnosticType::CpuUsage => {
+            let _ = write!(message, "H_len:{}", history.cpu_history.len());
+            draw_message_at_point(style, display, Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, info.screen_pos.y), &message);
+        },
+        DiagnosticType::CpuTemp => {
+            let _ = write!(message, "H_len:{}", history.cpu_temp_history.len());
+            draw_message_at_point(style, display, Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, info.screen_pos.y), &message);
+        },
+        DiagnosticType::GpuUsage => {
+            let _ = write!(message, "H_len:{}", history.gpu_history.len());
+            draw_message_at_point(style, display, Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, info.screen_pos.y), &message);
+        },
+        DiagnosticType::GpuTemp => {
+            let _ = write!(message, "H_len:{}", history.gpu_temp_history.len());
+            draw_message_at_point(style, display, Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, info.screen_pos.y), &message);
+        },
+        DiagnosticType::MemoryUsage => {
+            let _ = write!(message, "H_len:{}", history.mem_history.len());
+            draw_message_at_point(style, display, Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, info.screen_pos.y), &message);
+        },
+        DiagnosticType::DiskUsage => {
+            let _ = write!(message, "H_len:{}", history.disk_history.len());
+            draw_message_at_point(style, display, Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, info.screen_pos.y), &message);
+        },
+    }
 }
