@@ -28,6 +28,7 @@ const LABEL_CHARS: i32 = 11;
 const TEXT_WIDTH: i32 = CHAR_WIDTH * LABEL_CHARS;
 const GRAPH_X: i32 = TEXT_WIDTH + 2;
 const GRAPH_WIDTH: i32 = SCREEN_WIDTH - GRAPH_X;
+const HISTORY_LEN: usize = GRAPH_WIDTH as usize;
 
 bind_interrupts!(struct Irqs {
    USBCTRL_IRQ => InterruptHandler<USB>;
@@ -99,33 +100,37 @@ async fn main(spawner: Spawner) {
                         continue;
                     }
                     if b == b'\r' || b == b'\n' {
-                        if let Some(diagnostic_info) = parse_buffer(&line_buf) {
-                            clear_screen(&mut display);
+                        let Some(diagnostic_info) = parse_buffer(&line_buf) else {
+                            line_buf.clear();
+                            continue;
+                        };
+                        clear_screen(&mut display);
 
-                            for info in diagnostic_info {
-                                let mut label = String::<128>::new();
-                                let _ = write!(label, "{}{}", info.label, info.val_str);
-                                draw_message_at_point(style, &mut display, info.screen_pos, &label);
-                                set_history(&info, &mut diagnostic_hist);
-                                tmp_draw_hist_length(&diagnostic_hist, &info, &mut display, style);
-                            }
-                            flush_screen(&mut display);
+                        for info in diagnostic_info {
+                            let mut label = String::<128>::new();
+                            let _ = write!(label, "{}{}", info.label, info.val_str);
+                            draw_message_at_point(style, &mut display, info.screen_pos, &label);
+                            set_history(&info, &mut diagnostic_hist);
+                            tmp_draw_hist_length(&diagnostic_hist, &info, &mut display, style);
                         }
+                        flush_screen(&mut display);
                         line_buf.clear();
                     } else if let Err(item) = line_buf.push(b) {
-                        if let Some(diagnostic_info) = parse_buffer(&line_buf) {
-                            clear_screen(&mut display);
+                        let Some(diagnostic_info) = parse_buffer(&line_buf) else {
+                            line_buf.clear();
+                            let _ = line_buf.push(item);
+                            continue;
+                        };
+                        clear_screen(&mut display);
 
-                            for info in diagnostic_info {
-                                let mut label = String::<128>::new();
-                                let _ = write!(label, "{}{}", info.label, info.val_str);
-                                draw_message_at_point(style, &mut display, info.screen_pos, &label);
-                                set_history(&info, &mut diagnostic_hist);
-                                tmp_draw_hist_length(&diagnostic_hist, &info, &mut display, style);
-                            }
-                            flush_screen(&mut display);
+                        for info in diagnostic_info {
+                            let mut label = String::<128>::new();
+                            let _ = write!(label, "{}{}", info.label, info.val_str);
+                            draw_message_at_point(style, &mut display, info.screen_pos, &label);
+                            set_history(&info, &mut diagnostic_hist);
+                            tmp_draw_hist_length(&diagnostic_hist, &info, &mut display, style);
                         }
-                        parse_buffer(&line_buf);
+                        flush_screen(&mut display);
                         line_buf.clear();
                         let _ = line_buf.push(item);
                     }
@@ -136,25 +141,14 @@ async fn main(spawner: Spawner) {
             }
             Err(TimeoutError) => {
                 line_buf.clear();
-                if class.dtr() {
-                    clear_screen(&mut display);
-                    draw_message_at_point(
-                        style,
-                        &mut display,
-                        Point::new(0, 0),
-                        "Host Not Responding",
-                    );
-                    flush_screen(&mut display);
+                let message = if class.dtr() {
+                    "Host Not Responding"
                 } else {
-                    clear_screen(&mut display);
-                    draw_message_at_point(
-                        style,
-                        &mut display,
-                        Point::new(0, 0),
-                        "Waiting for Host",
-                    );
-                    flush_screen(&mut display);
-                }
+                    "Waiting for Host"
+                };
+                clear_screen(&mut display);
+                draw_message_at_point(style, &mut display, Point::new(0, 0), message);
+                flush_screen(&mut display);
             }
         }
     }
@@ -242,19 +236,46 @@ fn parse_val(val: &str) -> Option<f32> {
     let trimmed_val = val.trim_end_matches("%").trim_end_matches("GB");
 
     let parsed_val = trimmed_val.parse::<f32>().ok()?;
-    if parsed_val < 0. {
+    if !parsed_val.is_finite() || parsed_val < 0. {
         return None;
     }
     Some(parsed_val)
 }
 
 struct DiagnosticHistory {
-    cpu_history: HistoryBuf<f32, 60>,
-    cpu_temp_history: HistoryBuf<f32, 60>,
-    gpu_history: HistoryBuf<f32, 60>,
-    gpu_temp_history: HistoryBuf<f32, 60>,
-    mem_history: HistoryBuf<f32, 60>,
-    disk_history: HistoryBuf<f32, 60>,
+    cpu_history: HistoryBuf<f32, HISTORY_LEN>,
+    cpu_temp_history: HistoryBuf<f32, HISTORY_LEN>,
+    gpu_history: HistoryBuf<f32, HISTORY_LEN>,
+    gpu_temp_history: HistoryBuf<f32, HISTORY_LEN>,
+    mem_history: HistoryBuf<f32, HISTORY_LEN>,
+    disk_history: HistoryBuf<f32, HISTORY_LEN>,
+}
+
+impl DiagnosticHistory {
+    fn get(&self, diagnostic_type: &DiagnosticType) -> &HistoryBuf<f32, HISTORY_LEN> {
+        match diagnostic_type {
+            DiagnosticType::CpuUsage => &self.cpu_history,
+            DiagnosticType::CpuTemp => &self.cpu_temp_history,
+            DiagnosticType::GpuUsage => &self.gpu_history,
+            DiagnosticType::GpuTemp => &self.gpu_temp_history,
+            DiagnosticType::MemoryUsage => &self.mem_history,
+            DiagnosticType::DiskUsage => &self.disk_history,
+        }
+    }
+    fn get_mut(&mut self, diagnostic_type: &DiagnosticType) -> &mut HistoryBuf<f32, HISTORY_LEN> {
+        match diagnostic_type {
+            DiagnosticType::CpuUsage => &mut self.cpu_history,
+            DiagnosticType::CpuTemp => &mut self.cpu_temp_history,
+            DiagnosticType::GpuUsage => &mut self.gpu_history,
+            DiagnosticType::GpuTemp => &mut self.gpu_temp_history,
+            DiagnosticType::MemoryUsage => &mut self.mem_history,
+            DiagnosticType::DiskUsage => &mut self.disk_history,
+        }
+    }
+
+    fn write_history_point(&mut self, diagnostic_type: &DiagnosticType, val: f32) {
+        self.get_mut(diagnostic_type).write(val);
+    }
 }
 
 fn init_history() -> DiagnosticHistory {
@@ -271,17 +292,11 @@ fn init_history() -> DiagnosticHistory {
 // parse string and add f32 value to history
 fn set_history(diag_info: &DiagnosticLabelInfo, history: &mut DiagnosticHistory) {
     if let Some(parsed_val) = parse_val(diag_info.val_str) {
-        match diag_info.diag_type {
-            DiagnosticType::CpuUsage => history.cpu_history.write(parsed_val),
-            DiagnosticType::CpuTemp => history.cpu_temp_history.write(parsed_val),
-            DiagnosticType::GpuUsage => history.gpu_history.write(parsed_val),
-            DiagnosticType::GpuTemp => history.gpu_temp_history.write(parsed_val),
-            DiagnosticType::MemoryUsage => history.mem_history.write(parsed_val),
-            DiagnosticType::DiskUsage => history.disk_history.write(parsed_val),
-        }
+        history.write_history_point(&diag_info.diag_type, parsed_val);
     }
 }
 
+// todo: function to draw applicable graph to screen...
 fn draw_graph() {}
 
 fn tmp_draw_hist_length(
@@ -292,60 +307,12 @@ fn tmp_draw_hist_length(
 ) {
     // history.cpu_history.len();
     let mut message = String::<32>::new();
-    match info.diag_type {
-        DiagnosticType::CpuUsage => {
-            let _ = write!(message, "H_len:{}", history.cpu_history.len());
-            draw_message_at_point(
-                style,
-                display,
-                Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, info.screen_pos.y),
-                &message,
-            );
-        }
-        DiagnosticType::CpuTemp => {
-            let _ = write!(message, "H_len:{}", history.cpu_temp_history.len());
-            draw_message_at_point(
-                style,
-                display,
-                Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, info.screen_pos.y),
-                &message,
-            );
-        }
-        DiagnosticType::GpuUsage => {
-            let _ = write!(message, "H_len:{}", history.gpu_history.len());
-            draw_message_at_point(
-                style,
-                display,
-                Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, info.screen_pos.y),
-                &message,
-            );
-        }
-        DiagnosticType::GpuTemp => {
-            let _ = write!(message, "H_len:{}", history.gpu_temp_history.len());
-            draw_message_at_point(
-                style,
-                display,
-                Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, info.screen_pos.y),
-                &message,
-            );
-        }
-        DiagnosticType::MemoryUsage => {
-            let _ = write!(message, "H_len:{}", history.mem_history.len());
-            draw_message_at_point(
-                style,
-                display,
-                Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, info.screen_pos.y),
-                &message,
-            );
-        }
-        DiagnosticType::DiskUsage => {
-            let _ = write!(message, "H_len:{}", history.disk_history.len());
-            draw_message_at_point(
-                style,
-                display,
-                Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, info.screen_pos.y),
-                &message,
-            );
-        }
-    }
+    let hist = history.get(&info.diag_type);
+    let _ = write!(message, "H_len:{}", hist.len());
+    draw_message_at_point(
+        style,
+        display,
+        Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, info.screen_pos.y),
+        &message,
+    );
 }
