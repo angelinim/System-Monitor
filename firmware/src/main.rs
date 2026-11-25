@@ -111,8 +111,9 @@ async fn main(spawner: Spawner) {
                             let _ = write!(label, "{}{}", info.label, info.val_str);
                             draw_message_at_point(style, &mut display, info.screen_pos, &label);
                             set_history(&info, &mut diagnostic_hist);
-                            tmp_draw_hist_length(&diagnostic_hist, &info, &mut display, style);
                         }
+                        draw_graph(&diagnostic_hist, &DiagnosticType::CpuUsage, &mut display);
+
                         flush_screen(&mut display);
                         line_buf.clear();
                     } else if let Err(item) = line_buf.push(b) {
@@ -128,8 +129,9 @@ async fn main(spawner: Spawner) {
                             let _ = write!(label, "{}{}", info.label, info.val_str);
                             draw_message_at_point(style, &mut display, info.screen_pos, &label);
                             set_history(&info, &mut diagnostic_hist);
-                            tmp_draw_hist_length(&diagnostic_hist, &info, &mut display, style);
                         }
+                        draw_graph(&diagnostic_hist, &DiagnosticType::CpuUsage, &mut display);
+
                         flush_screen(&mut display);
                         line_buf.clear();
                         let _ = line_buf.push(item);
@@ -296,8 +298,24 @@ fn set_history(diag_info: &DiagnosticLabelInfo, history: &mut DiagnosticHistory)
     }
 }
 
-// todo: function to draw applicable graph to screen...
-fn draw_graph() {}
+// draw each point of the history on the graph
+fn draw_graph(history: &DiagnosticHistory, diag_type: &DiagnosticType, display: &mut MyDisplay) {
+    let ordered_history_vals = history.get(diag_type).oldest_ordered();
+    let actual_hist_len = history.get(diag_type).len();
+    for (i,hist_val) in ordered_history_vals.enumerate() {
+        // could use a match on diagnostic type to decide on min and max values. 
+        let y = convert_val_to_graph_point(0., 100., *hist_val);
+        let x = GRAPH_X + (HISTORY_LEN - actual_hist_len) as i32 + i as i32;
+        let _ = Pixel(Point::new(x, y), BinaryColor::On).draw(display);
+    }
+}
+
+fn convert_val_to_graph_point(min: f32, max: f32, val: f32) -> i32 {
+    // percent fraction of the screen height
+    let fraction = (val-min/max-min).clamp(min, max);
+    // bottom of screen -> SCREEN_HEIGHT - 1 this is because y starts at top of screen
+    (SCREEN_HEIGHT - 1) - SCREEN_HEIGHT * fraction as i32
+}
 
 fn tmp_draw_hist_length(
     history: &DiagnosticHistory,
