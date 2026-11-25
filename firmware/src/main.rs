@@ -304,17 +304,18 @@ fn draw_graph(history: &DiagnosticHistory, diag_type: &DiagnosticType, display: 
     let actual_hist_len = history.get(diag_type).len();
     for (i,hist_val) in ordered_history_vals.enumerate() {
         // could use a match on diagnostic type to decide on min and max values. 
-        let y = convert_val_to_graph_point(0., 100., *hist_val);
+        let y = convert_val_to_y(0., 100., *hist_val);
         let x = GRAPH_X + (HISTORY_LEN - actual_hist_len) as i32 + i as i32;
         let _ = Pixel(Point::new(x, y), BinaryColor::On).draw(display);
     }
 }
 
-fn convert_val_to_graph_point(min: f32, max: f32, val: f32) -> i32 {
+fn convert_val_to_y(min: f32, max: f32, val: f32) -> i32 {
     // percent fraction of the screen height
-    let fraction = (val-min/max-min).clamp(min, max);
+    let fraction = (val-min)/(max-min);
     // bottom of screen -> SCREEN_HEIGHT - 1 this is because y starts at top of screen
-    (SCREEN_HEIGHT - 1) - SCREEN_HEIGHT * fraction as i32
+    let bottom = (SCREEN_HEIGHT - 1) as f32;
+    (bottom - (bottom * fraction)) as i32
 }
 
 fn tmp_draw_hist_length(
