@@ -302,8 +302,8 @@ fn set_history(diag_info: &DiagnosticLabelInfo, history: &mut DiagnosticHistory)
 fn draw_graph(history: &DiagnosticHistory, diag_type: &DiagnosticType, display: &mut MyDisplay) {
     let ordered_history_vals = history.get(diag_type).oldest_ordered();
     let actual_hist_len = history.get(diag_type).len();
-    for (i,hist_val) in ordered_history_vals.enumerate() {
-        // could use a match on diagnostic type to decide on min and max values. 
+    for (i, hist_val) in ordered_history_vals.enumerate() {
+        // could use a match on diagnostic type to decide on min and max values.
         let y = convert_val_to_y(0., 100., *hist_val);
         let x = GRAPH_X + (HISTORY_LEN - actual_hist_len) as i32 + i as i32;
         let _ = Pixel(Point::new(x, y), BinaryColor::On).draw(display);
@@ -312,26 +312,8 @@ fn draw_graph(history: &DiagnosticHistory, diag_type: &DiagnosticType, display: 
 
 fn convert_val_to_y(min: f32, max: f32, val: f32) -> i32 {
     // percent fraction of the screen height
-    let fraction = (val-min)/(max-min);
+    let fraction = (val - min) / (max - min);
     // bottom of screen -> SCREEN_HEIGHT - 1 this is because y starts at top of screen
     let bottom = (SCREEN_HEIGHT - 1) as f32;
     (bottom - (bottom * fraction)) as i32
-}
-
-fn tmp_draw_hist_length(
-    history: &DiagnosticHistory,
-    info: &DiagnosticLabelInfo,
-    display: &mut MyDisplay,
-    style: MonoTextStyle<'static, BinaryColor>,
-) {
-    // history.cpu_history.len();
-    let mut message = String::<32>::new();
-    let hist = history.get(&info.diag_type);
-    let _ = write!(message, "H_len:{}", hist.len());
-    draw_message_at_point(
-        style,
-        display,
-        Point::new(TEXT_WIDTH + 2 * CHAR_WIDTH, info.screen_pos.y),
-        &message,
-    );
 }
