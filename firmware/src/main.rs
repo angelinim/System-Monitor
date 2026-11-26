@@ -300,19 +300,18 @@ fn set_history(diag_info: &DiagnosticLabelInfo, history: &mut DiagnosticHistory)
 
 // draw each point of the history on the graph
 fn draw_graph(history: &DiagnosticHistory, diag_type: &DiagnosticType, display: &mut MyDisplay) {
-    let ordered_history_vals = history.get(diag_type).oldest_ordered();
-    let actual_hist_len = history.get(diag_type).len();
-    for (i, hist_val) in ordered_history_vals.enumerate() {
+    let hist = history.get(diag_type);
+    let actual_hist_len = hist.len();
+    for (i, hist_val) in hist.oldest_ordered().enumerate() {
         // could use a match on diagnostic type to decide on min and max values.
         let y = convert_val_to_y(0., 100., *hist_val);
         let x = GRAPH_X + (HISTORY_LEN - actual_hist_len) as i32 + i as i32;
-        let _ = Pixel(Point::new(x, y), BinaryColor::On).draw(display);
+        Pixel(Point::new(x, y), BinaryColor::On).draw(display).unwrap();
     }
 }
 
 fn convert_val_to_y(min: f32, max: f32, val: f32) -> i32 {
-    // percent fraction of the screen height
-    let fraction = (val - min) / (max - min);
+    let fraction = ((val - min) / (max - min)).clamp(0., 1.);
     // bottom of screen -> SCREEN_HEIGHT - 1 this is because y starts at top of screen
     let bottom = (SCREEN_HEIGHT - 1) as f32;
     (bottom - (bottom * fraction)) as i32
