@@ -28,6 +28,8 @@ const LABEL_CHARS: i32 = 11;
 const TEXT_WIDTH: i32 = CHAR_WIDTH * LABEL_CHARS;
 const GRAPH_X: i32 = TEXT_WIDTH + 2;
 const GRAPH_WIDTH: i32 = SCREEN_WIDTH - GRAPH_X;
+const GRAPH_BOTTOM: i32 = SCREEN_HEIGHT - 1;
+const GRAPH_TOP: i32 = 1;
 const HISTORY_LEN: usize = GRAPH_WIDTH as usize;
 
 bind_interrupts!(struct Irqs {
@@ -313,6 +315,5 @@ fn draw_graph(history: &DiagnosticHistory, diag_type: &DiagnosticType, display: 
 fn convert_val_to_y(min: f32, max: f32, val: f32) -> i32 {
     let fraction = ((val - min) / (max - min)).clamp(0., 1.);
     // bottom of screen -> SCREEN_HEIGHT - 1 this is because y starts at top of screen
-    let bottom = (SCREEN_HEIGHT - 1) as f32;
-    (bottom - (bottom * fraction)) as i32
+    (GRAPH_BOTTOM as f32 - (GRAPH_BOTTOM as f32 * fraction)) as i32
 }
