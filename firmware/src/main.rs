@@ -14,6 +14,7 @@ use embedded_graphics::mono_font::MonoTextStyle;
 use embedded_graphics::mono_font::ascii::FONT_6X10;
 use embedded_graphics::pixelcolor::BinaryColor;
 use embedded_graphics::prelude::*;
+use embedded_graphics::primitives::{PrimitiveStyle, Rectangle};
 use embedded_graphics::text::{Baseline, Text};
 use heapless::{HistoryBuf, String, Vec};
 use panic_halt as _;
@@ -26,8 +27,9 @@ const SCREEN_HEIGHT: i32 = 64;
 const CHAR_WIDTH: i32 = 6;
 const LABEL_CHARS: i32 = 11;
 const TEXT_WIDTH: i32 = CHAR_WIDTH * LABEL_CHARS;
-const GRAPH_X: i32 = TEXT_WIDTH + 2;
-const GRAPH_WIDTH: i32 = SCREEN_WIDTH - GRAPH_X;
+const GRAPH_START: i32 = TEXT_WIDTH + 2;
+const GRAPH_END: i32 = SCREEN_WIDTH - 1;
+const GRAPH_WIDTH: i32 = SCREEN_WIDTH - GRAPH_START;
 const GRAPH_BOTTOM: i32 = SCREEN_HEIGHT - 1;
 const GRAPH_TOP: i32 = 1;
 const HISTORY_LEN: usize = GRAPH_WIDTH as usize;
@@ -300,14 +302,25 @@ fn set_history(diag_info: &DiagnosticLabelInfo, history: &mut DiagnosticHistory)
     }
 }
 
+// const GRAPH_X: i32 = TEXT_WIDTH + 2;
+// const GRAPH_WIDTH: i32 = SCREEN_WIDTH - GRAPH_X;
+// const GRAPH_BOTTOM: i32 = SCREEN_HEIGHT - 1;
+// const GRAPH_TOP: i32 = 1;
 // draw each point of the history on the graph
 fn draw_graph(history: &DiagnosticHistory, diag_type: &DiagnosticType, display: &mut MyDisplay) {
+    Rectangle::new(
+        Point::new(GRAPH_START, GRAPH_TOP),
+        Size::new(GRAPH_WIDTH as u32, GRAPH_BOTTOM as u32)
+    )
+        .into_styled(PrimitiveStyle::with_stroke(BinaryColor::On, 1))
+        .draw(display).unwrap();
+
     let hist = history.get(diag_type);
     let actual_hist_len = hist.len();
     for (i, hist_val) in hist.oldest_ordered().enumerate() {
         // could use a match on diagnostic type to decide on min and max values.
         let y = convert_val_to_y(0., 100., *hist_val);
-        let x = GRAPH_X + (HISTORY_LEN - actual_hist_len) as i32 + i as i32;
+        let x = GRAPH_START + (HISTORY_LEN - actual_hist_len) as i32 + i as i32;
         Pixel(Point::new(x, y), BinaryColor::On).draw(display).unwrap();
     }
 }
