@@ -14,7 +14,7 @@ use embedded_graphics::mono_font::MonoTextStyle;
 use embedded_graphics::mono_font::ascii::FONT_6X10;
 use embedded_graphics::pixelcolor::BinaryColor;
 use embedded_graphics::prelude::*;
-use embedded_graphics::primitives::{PrimitiveStyle, Rectangle};
+use embedded_graphics::primitives::{Line, PrimitiveStyle, Rectangle};
 use embedded_graphics::text::{Baseline, Text};
 use heapless::{HistoryBuf, String, Vec};
 use panic_halt as _;
@@ -302,10 +302,6 @@ fn set_history(diag_info: &DiagnosticLabelInfo, history: &mut DiagnosticHistory)
     }
 }
 
-// const GRAPH_X: i32 = TEXT_WIDTH + 2;
-// const GRAPH_WIDTH: i32 = SCREEN_WIDTH - GRAPH_X;
-// const GRAPH_BOTTOM: i32 = SCREEN_HEIGHT - 1;
-// const GRAPH_TOP: i32 = 1;
 // draw each point of the history on the graph
 fn draw_graph(history: &DiagnosticHistory, diag_type: &DiagnosticType, display: &mut MyDisplay) {
     Rectangle::new(
@@ -321,7 +317,10 @@ fn draw_graph(history: &DiagnosticHistory, diag_type: &DiagnosticType, display: 
         // could use a match on diagnostic type to decide on min and max values.
         let y = convert_val_to_y(0., 100., *hist_val);
         let x = GRAPH_START + (HISTORY_LEN - actual_hist_len) as i32 + i as i32;
-        Pixel(Point::new(x, y), BinaryColor::On).draw(display).unwrap();
+        Line::new(Point::new(x, y), Point::new(x, GRAPH_BOTTOM))
+            .into_styled(PrimitiveStyle::with_stroke(BinaryColor::On, 1))
+            .draw(display)
+            .unwrap();
     }
 }
 
