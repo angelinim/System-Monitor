@@ -30,8 +30,12 @@ const TEXT_WIDTH: i32 = CHAR_WIDTH * LABEL_CHARS;
 const GRAPH_START: i32 = TEXT_WIDTH + 2;
 const GRAPH_WIDTH: i32 = SCREEN_WIDTH - GRAPH_START;
 const GRAPH_BOTTOM: i32 = SCREEN_HEIGHT - 1;
-const GRAPH_TOP: i32 = 1;
-const HISTORY_LEN: usize = GRAPH_WIDTH as usize;
+const GRAPH_TOP: i32 = 0;
+const PLOT_START: i32 = GRAPH_START + 1;
+const PLOT_TOP: i32 = GRAPH_TOP + 1;
+const PLOT_BOTTOM: i32 = GRAPH_BOTTOM - 1;
+const PLOT_WIDTH: i32 = GRAPH_WIDTH - 2;
+const HISTORY_LEN: usize = PLOT_WIDTH as usize;
 
 bind_interrupts!(struct Irqs {
    USBCTRL_IRQ => InterruptHandler<USB>;
@@ -305,18 +309,19 @@ fn set_history(diag_info: &DiagnosticLabelInfo, history: &mut DiagnosticHistory)
 fn draw_graph(history: &DiagnosticHistory, diag_type: &DiagnosticType, display: &mut MyDisplay) {
     Rectangle::new(
         Point::new(GRAPH_START, GRAPH_TOP),
-        Size::new(GRAPH_WIDTH as u32, GRAPH_BOTTOM as u32)
+        Size::new(GRAPH_WIDTH as u32, (GRAPH_BOTTOM - GRAPH_TOP + 1) as u32),
     )
-        .into_styled(PrimitiveStyle::with_stroke(BinaryColor::On, 1))
-        .draw(display).unwrap();
+    .into_styled(PrimitiveStyle::with_stroke(BinaryColor::On, 1))
+    .draw(display)
+    .unwrap();
 
     let hist = history.get(diag_type);
     let actual_hist_len = hist.len();
     for (i, hist_val) in hist.oldest_ordered().enumerate() {
         // could use a match on diagnostic type to decide on min and max values.
         let y = convert_val_to_y(0., 100., *hist_val);
-        let x = GRAPH_START + (HISTORY_LEN - actual_hist_len) as i32 + i as i32;
-        Line::new(Point::new(x, y), Point::new(x, GRAPH_BOTTOM))
+        let x = PLOT_START + (HISTORY_LEN - actual_hist_len) as i32 + i as i32;
+        Line::new(Point::new(x, y), Point::new(x, PLOT_BOTTOM))
             .into_styled(PrimitiveStyle::with_stroke(BinaryColor::On, 1))
             .draw(display)
             .unwrap();
@@ -325,6 +330,5 @@ fn draw_graph(history: &DiagnosticHistory, diag_type: &DiagnosticType, display: 
 
 fn convert_val_to_y(min: f32, max: f32, val: f32) -> i32 {
     let fraction = ((val - min) / (max - min)).clamp(0., 1.);
-    // bottom of screen -> SCREEN_HEIGHT - 1 this is because y starts at top of screen
-    (GRAPH_BOTTOM as f32 - (GRAPH_BOTTOM as f32 * fraction)) as i32
+    (PLOT_BOTTOM as f32 - ((PLOT_BOTTOM - PLOT_TOP)as f32 * fraction)) as i32
 }
